@@ -1,7 +1,8 @@
 # -----------------------------------------------
 # README content (as string, optional for documentation)
 # -----------------------------------------------
-README = """
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://biz-forecast.streamlit.app/)
+
 # 📦 Demand Forecasting App
 
 This is a Streamlit web app that forecasts daily product demand using Facebook Prophet. Users can upload a sales CSV, run time series forecasting, and download projected results — all powered by a backend connection to Azure Blob Storage.
