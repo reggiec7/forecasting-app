@@ -1,3 +1,8 @@
+# forecasting_app.py
+
+# Install required packages (use in setup or notebook environment)
+# !pip install streamlit pandas prophet azure-storage-blob plotly
+
 import streamlit as st
 import pandas as pd
 from prophet import Prophet
@@ -7,11 +12,38 @@ import plotly.graph_objs as go
 from prophet.plot import plot_plotly
 
 # -----------------------------------------------
-# 1. Page Setup
+# 1. Page Setup & Intro
 # -----------------------------------------------
-st.set_page_config(page_title="Demand Forecast App", layout="centered")
-st.title("📦 Demand Forecasting Web App")
-st.markdown("Upload your CSV file to forecast demand over time using Prophet.")
+st.set_page_config(
+    page_title="BizForecast – Demand Forecasting Tool",
+    layout="centered",
+    initial_sidebar_state="collapsed"
+)
+
+st.title("📦 BizForecast")
+st.markdown("### AI-Powered Demand Forecasting Web App")
+st.markdown(
+    """
+    Upload your sales data to generate a demand forecast using Facebook Prophet.
+    This tool is ideal for business analysts, planners, and inventory managers.
+    """
+)
+
+st.markdown("---")
+
+# Optional: collapsible instructions
+with st.expander("ℹ️ How to Use This App", expanded=False):
+    st.markdown("""
+    **1. Upload a CSV file** with at least two columns:  
+    - `Date`: format like `YYYY-MM-DD`  
+    - `Demand`: daily or aggregated demand quantity
+
+    **2. Choose how far ahead to forecast**
+
+    **3. View the interactive chart and download forecast results**
+
+    🔐 Your data is temporarily uploaded to secure Azure Blob Storage.
+    """)
 
 # -----------------------------------------------
 # 2. Azure Blob Storage Setup
@@ -50,6 +82,14 @@ if uploaded_file:
         future = model.make_future_dataframe(periods=forecast_days)
         forecast = model.predict(future)
 
+        # Rename forecast columns for user-friendly display
+        forecast_display = forecast.rename(columns={
+            "ds": "Date",
+            "yhat": "Predicted Demand",
+            "yhat_lower": "Lower Bound",
+            "yhat_upper": "Upper Bound"
+        })
+
         # Plot forecast
         st.subheader("📈 Forecast Plot")
         fig = plot_plotly(model, forecast)
@@ -58,13 +98,11 @@ if uploaded_file:
 
         # Show forecast table
         st.subheader("🔢 Forecasted Values")
-        st.dataframe(forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(forecast_days))
+        st.dataframe(forecast_display[["Date", "Predicted Demand", "Lower Bound", "Upper Bound"]].tail(forecast_days))
 
         # Option to download results
-        csv_output = forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].to_csv(index=False).encode('utf-8')
+        csv_output = forecast_display[["Date", "Predicted Demand", "Lower Bound", "Upper Bound"]].to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download Forecast CSV", csv_output, file_name="demand_forecast.csv")
 
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
-
-
