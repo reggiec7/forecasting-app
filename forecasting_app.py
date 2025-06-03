@@ -10,6 +10,7 @@ from azure.storage.blob import BlobServiceClient
 import io
 import plotly.graph_objs as go
 from prophet.plot import plot_plotly
+import numpy as np
 
 # -----------------------------------------------
 # 1. Page Setup & Intro
@@ -81,6 +82,19 @@ if uploaded_file:
 
         future = model.make_future_dataframe(periods=forecast_days)
         forecast = model.predict(future)
+
+        # Calculate MAPE and RMSE over training period
+        forecast_merged = forecast.set_index("ds")[["yhat"]].join(df_daily.set_index("ds")[["y"]]).dropna()
+        forecast_merged["APE"] = abs((forecast_merged["y"] - forecast_merged["yhat"]) / forecast_merged["y"])
+        mape = forecast_merged["APE"].mean() * 100
+        rmse = np.sqrt(((forecast_merged["y"] - forecast_merged["yhat"]) ** 2).mean())
+
+        # Show forecast accuracy
+        st.subheader("📊 Forecast Accuracy (Training Period Only)")
+        st.metric("Mean Absolute Percentage Error (MAPE)", f"{mape:.2f}%")
+        st.metric("Root Mean Squared Error (RMSE)", f"{rmse:.2f}")
+
+        st.caption("**MAPE** shows the average forecast error as a percentage of actual values — lower is better. **RMSE** tells how far off predictions are in the same units as demand (e.g. units/day). Both are based on historical training data.")
 
         # Rename forecast columns for user-friendly display
         forecast_display = forecast.rename(columns={
