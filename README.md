@@ -1,5 +1,5 @@
 # -----------------------------------------------
-# README content (as string, optional for documentation)
+# README
 # -----------------------------------------------
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://biz-forecast.streamlit.app/)
 
