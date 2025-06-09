@@ -1,71 +1,70 @@
-# -----------------------------------------------
-# README
-# -----------------------------------------------
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://biz-forecast.streamlit.app/)
+# 📦 BizForecast – Demand Forecasting App
 
-# 📦 Demand Forecasting App
+![Version](https://img.shields.io/badge/version-v1.2-blue)
 
-This is a Streamlit web app that forecasts daily product demand using Facebook Prophet. Users can upload a sales CSV, run time series forecasting, and download projected results — all powered by a backend connection to Azure Blob Storage.
+This is a Streamlit-based web app that uses **Facebook Prophet** to forecast product demand using uploaded sales data. It integrates with **Azure Blob Storage** for cloud-based file management.
+
+---
 
 ## 🚀 Features
 
-- Upload historical sales data in `.csv` format
-- Automatically forecast future demand for the next 7–90 days
-- View interactive charts and confidence intervals
-- Download forecasted results as a `.csv`
-- Saves uploaded data to Azure Blob Storage
+- Upload CSV sales data
+- Forecast demand for specific `Product ID`s
+- View interactive forecast plots and metrics (MAPE, RMSE)
+- Download forecast results as CSV
+- Automatically stores uploaded files to Azure Blob Storage
+- Collects optional user contact info for lead capture
+
+---
 
 ## 📂 Sample CSV Format
 
-| Date       | Demand |
-|------------|--------|
-| 2022-01-01 | 150    |
-| 2022-01-02 | 175    |
+| Date       | Product ID | Demand |
+|------------|------------|--------|
+| 2022-01-01 | P0001      | 150    |
+| 2022-01-01 | P0002      | 120    |
+| ...        | ...        | ...    |
 
-📝 Additional metadata like `Product ID` or `Store ID` can be included, but only `Date` and `Demand` are required for forecasting.
+
+---
 
 ## 🛠 How to Run Locally
 
-1. **Clone the repository**:
-   ```bash
-   git clone git@github.com:your-username/forecasting-app.git
-   cd forecasting-app
-   ```
+```bash
+# Clone the repo
+git clone https://github.com/reggiec7/forecasting-app.git
+cd forecasting-app
 
-2. **Create and activate a virtual environment**:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+# Install dependencies
+pip install -r requirements.txt
 
-4. **Configure Azure secrets**:
+# Add your Azure storage secret in .streamlit/secrets.toml
+AZURE_STORAGE_CONNECTION_STRING = "your_connection_string_here"
 
-   Create a file called `.streamlit/secrets.toml` and add your Azure storage credentials:
+# Run the app
+streamlit run forecasting_app.py
+```
 
-   ```toml
-   AZURE_STORAGE_CONNECTION_STRING = "your_connection_string_here"
-   ```
+---
 
-5. **Run the app**:
+## 📈 Forecast Accuracy Metrics
+- **MAPE**: Percent error in predictions — lower is better.
+- **RMSE**: Absolute error in units of demand (e.g., units/day).
 
-   ```bash
-   streamlit run forecasting_app.py
-   ```
+Displayed after training on historical data. Future forecast accuracy is not evaluated.
 
-   The app will open in your default browser at [http://localhost:8501](http://localhost:8501)
+---
 
-## ☁️ Optional: Deployment Options
+## 🔗 Useful Links
 
-- [Streamlit Community Cloud](https://streamlit.io/cloud)
-- Azure App Service
-- Docker + GitHub Actions (optional)
+- [Live App on Streamlit Cloud](https://biz-forecast.streamlit.app/)
+- [CHANGELOG.md](./CHANGELOG.md)
 
-## 📄 License
+---
 
-MIT — free for personal and commercial use.
-"""
+## 📋 License
+MIT License
