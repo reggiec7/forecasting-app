@@ -11,6 +11,7 @@ import io
 import plotly.graph_objs as go
 from prophet.plot import plot_plotly
 import numpy as np
+from datetime import datetime
 
 # -----------------------------------------------
 # 1. Page Setup & Intro
@@ -35,13 +36,16 @@ st.markdown("---")
 # Optional: collapsible instructions
 with st.expander("ℹ️ How to Use This App", expanded=False):
     st.markdown("""
-    **1. Upload a CSV file** with at least two columns:  
+    **1. Upload a CSV file** with at least three columns:  
     - `Date`: format like `YYYY-MM-DD`  
-    - `Demand`: daily or aggregated demand quantity
+    - `Demand`: daily or aggregated demand quantity  
+    - `Product ID`: for product-specific forecasts
 
-    **2. Choose how far ahead to forecast**
+    **2. Enter your contact info (optional but recommended)**
 
-    **3. View the interactive chart and download forecast results**
+    **3. Choose how far ahead to forecast**
+
+    **4. View the interactive chart and download forecast results**
 
     🔐 Your data is temporarily uploaded to secure Azure Blob Storage.
     """)
@@ -51,12 +55,34 @@ with st.expander("ℹ️ How to Use This App", expanded=False):
 # -----------------------------------------------
 AZURE_CONNECTION_STRING = st.secrets["AZURE_STORAGE_CONNECTION_STRING"]
 CONTAINER_NAME = "forecast-input"
+CONTACT_CONTAINER = "user-contact"
 
 # Initialize BlobServiceClient
 blob_service_client = BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
 
 # -----------------------------------------------
-# 3. Upload CSV File
+# 3. Contact Form
+# -----------------------------------------------
+st.markdown("### 🙋 Contact (Optional)")
+with st.form("contact_form"):
+    name = st.text_input("Your Name")
+    email = st.text_input("Email Address")
+    company = st.text_input("Company (optional)")
+    submitted = st.form_submit_button("Submit")
+
+if submitted:
+    try:
+        contact_data = pd.DataFrame([{"name": name, "email": email, "company": company, "timestamp": datetime.now()}])
+        csv_bytes = contact_data.to_csv(index=False).encode('utf-8')
+        blob_name = f"contact_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        contact_blob = blob_service_client.get_blob_client(container=CONTACT_CONTAINER, blob=blob_name)
+        contact_blob.upload_blob(csv_bytes, overwrite=True)
+        st.success("✅ Contact submitted successfully!")
+    except Exception as e:
+        st.error(f"❌ Failed to save contact info: {e}")
+
+# -----------------------------------------------
+# 4. Upload CSV File
 # -----------------------------------------------
 uploaded_file = st.file_uploader("Upload your sales_data.csv", type=["csv"])
 forecast_days = st.slider("Forecast horizon (days)", min_value=7, max_value=90, value=30)
@@ -71,52 +97,60 @@ if uploaded_file:
         uploaded_file.seek(0)  # reset pointer
         df = pd.read_csv(uploaded_file)
 
-        # Clean and prepare data
-        df['Date'] = pd.to_datetime(df['Date'])
-        df_daily = df.groupby("Date")["Demand"].sum().reset_index()
-        df_daily.columns = ["ds", "y"]
+        # Ensure required columns
+        if not {'Date', 'Demand', 'Product ID'}.issubset(df.columns):
+            st.error("❌ CSV must include 'Date', 'Demand', and 'Product ID' columns.")
+        else:
+            df['Date'] = pd.to_datetime(df['Date'])
+            product_ids = df['Product ID'].unique()
+            selected_product = st.selectbox("Select a Product to Forecast", product_ids)
+            df_filtered = df[df['Product ID'] == selected_product]
 
-        # Fit Prophet model
-        model = Prophet()
-        model.fit(df_daily)
+            # Clean and prepare data
+            df_daily = df_filtered.groupby("Date")["Demand"].sum().reset_index()
+            df_daily.columns = ["ds", "y"]
 
-        future = model.make_future_dataframe(periods=forecast_days)
-        forecast = model.predict(future)
+            # Fit Prophet model
+            model = Prophet()
+            model.fit(df_daily)
 
-        # Calculate MAPE and RMSE over training period
-        forecast_merged = forecast.set_index("ds")[["yhat"]].join(df_daily.set_index("ds")[["y"]]).dropna()
-        forecast_merged["APE"] = abs((forecast_merged["y"] - forecast_merged["yhat"]) / forecast_merged["y"])
-        mape = forecast_merged["APE"].mean() * 100
-        rmse = np.sqrt(((forecast_merged["y"] - forecast_merged["yhat"]) ** 2).mean())
+            future = model.make_future_dataframe(periods=forecast_days)
+            forecast = model.predict(future)
 
-        # Show forecast accuracy
-        st.subheader("📊 Forecast Accuracy (Training Period Only)")
-        st.metric("Mean Absolute Percentage Error (MAPE)", f"{mape:.2f}%")
-        st.metric("Root Mean Squared Error (RMSE)", f"{rmse:.2f}")
+            # Calculate MAPE and RMSE over training period
+            forecast_merged = forecast.set_index("ds")[["yhat"]].join(df_daily.set_index("ds")[["y"]]).dropna()
+            forecast_merged["APE"] = abs((forecast_merged["y"] - forecast_merged["yhat"]) / forecast_merged["y"])
+            mape = forecast_merged["APE"].mean() * 100
+            rmse = np.sqrt(((forecast_merged["y"] - forecast_merged["yhat"]) ** 2).mean())
 
-        st.caption("**MAPE** shows the average forecast error as a percentage of actual values — lower is better. **RMSE** tells how far off predictions are in the same units as demand (e.g. units/day). Both are based on historical training data.")
+            # Show forecast accuracy
+            st.subheader("📊 Forecast Accuracy (Training Period Only)")
+            st.metric("Mean Absolute Percentage Error (MAPE)", f"{mape:.2f}%")
+            st.metric("Root Mean Squared Error (RMSE)", f"{rmse:.2f}")
 
-        # Rename forecast columns for user-friendly display
-        forecast_display = forecast.rename(columns={
-            "ds": "Date",
-            "yhat": "Predicted Demand",
-            "yhat_lower": "Lower Bound",
-            "yhat_upper": "Upper Bound"
-        })
+            st.caption("**MAPE** shows the average forecast error as a percentage of actual values — lower is better. **RMSE** tells how far off predictions are in the same units as demand (e.g. units/day). Both are based on historical training data.")
 
-        # Plot forecast
-        st.subheader("📈 Forecast Plot")
-        fig = plot_plotly(model, forecast)
-        fig.update_layout(xaxis_title="Date", yaxis_title="Forecasted Demand")
-        st.plotly_chart(fig)
+            # Rename forecast columns for user-friendly display
+            forecast_display = forecast.rename(columns={
+                "ds": "Date",
+                "yhat": "Predicted Demand",
+                "yhat_lower": "Lower Bound",
+                "yhat_upper": "Upper Bound"
+            })
 
-        # Show forecast table
-        st.subheader("🔢 Forecasted Values")
-        st.dataframe(forecast_display[["Date", "Predicted Demand", "Lower Bound", "Upper Bound"]].tail(forecast_days))
+            # Plot forecast
+            st.subheader(f"📈 Forecast Plot for Product: {selected_product}")
+            fig = plot_plotly(model, forecast)
+            fig.update_layout(xaxis_title="Date", yaxis_title="Forecasted Demand")
+            st.plotly_chart(fig)
 
-        # Option to download results
-        csv_output = forecast_display[["Date", "Predicted Demand", "Lower Bound", "Upper Bound"]].to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Forecast CSV", csv_output, file_name="demand_forecast.csv")
+            # Show forecast table
+            st.subheader("🔢 Forecasted Values")
+            st.dataframe(forecast_display[["Date", "Predicted Demand", "Lower Bound", "Upper Bound"]].tail(forecast_days))
+
+            # Option to download results
+            csv_output = forecast_display[["Date", "Predicted Demand", "Lower Bound", "Upper Bound"]].to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Forecast CSV", csv_output, file_name=f"forecast_{selected_product}.csv")
 
     except Exception as e:
         st.error(f"❌ An error occurred: {e}")
